@@ -12,6 +12,7 @@ namespace Calculator.Application.Core
         private const string DivByZeroPattern = @"\/\s*0+(?![\d\.])";
         private static readonly Regex _defaultRegex = new Regex(Pattern, RegexOptions.Compiled);
         private static readonly Regex _divByZeroRegex = new Regex(DivByZeroPattern, RegexOptions.Compiled);
+        private static readonly Regex _unaryMinusRegex = new Regex(@"(?<![0-9.)])-(\d+(?:\.\d+)?)", RegexOptions.Compiled);
         private readonly Queue<string?> _output = new();
         private readonly Stack<string> _operators = new();
         private readonly Stack<T> _calcStack = new();
@@ -93,7 +94,8 @@ namespace Calculator.Application.Core
         {
             _output.Clear();
             _operators.Clear();
-            var matches = _defaultRegex.Matches(line);
+            var normalized = _unaryMinusRegex.Replace(line, "(0-$1)");
+            var matches = _defaultRegex.Matches(normalized);
 
             foreach (Match match in matches)
             {

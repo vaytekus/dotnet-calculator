@@ -58,11 +58,16 @@ public class ExpressionParserTests : IDisposable
         Assert.Equal(expected, result[0].sum);
     }
 
-    [Fact]
-    public void DivideByZero_ReturnsInvalidWithMessage()
+    [Theory]
+    [InlineData("2/0")]
+    [InlineData("2+15/0+4*2")]
+    [InlineData("(2+3)*4+(4/0)")]
+    [InlineData("0/0")]
+    public void DivideByZero_ReturnsInvalidWithMessage(string expression)
     {
-        var result = Parse("2/0");
+        var result = Parse(expression);
         Assert.False(result[0].isValid);
+        Assert.StartsWith(expression, result[0].displayLine);
         Assert.Contains("Divide by zero", result[0].displayLine);
     }
 
@@ -84,6 +89,18 @@ public class ExpressionParserTests : IDisposable
         Assert.False(result[1].isValid);
         Assert.True(result[2].isValid);
         Assert.Equal(15, result[2].sum);
+    }
+
+    [Theory]
+    [InlineData("-5+3", -2)]
+    [InlineData("2*-3", -6)]
+    [InlineData("(-5+3)", -2)]
+    [InlineData("-10+10", 0)]
+    public void NegativeNumbers_ReturnsCorrectResult(string expression, int expected)
+    {
+        var result = Parse(expression);
+        Assert.True(result[0].isValid);
+        Assert.Equal(expected, result[0].sum);
     }
 
     public void Dispose()
