@@ -7,8 +7,7 @@ class Program
     static void Main(string[] args)
     {
         Console.WriteLine("Enter file name:");
-        string fileName = "calculations.txt";
-        // string fileName = Console.ReadLine();
+        string fileName = Console.ReadLine();
         
         string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         string pathToFile = Path.Combine(documentsPath, fileName); 
