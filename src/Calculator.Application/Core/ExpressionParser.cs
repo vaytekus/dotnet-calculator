@@ -13,15 +13,16 @@ namespace Calculator.Application.Core
         private static readonly Regex _defaultRegex = new Regex(Pattern, RegexOptions.Compiled);
         private static readonly Regex _divByZeroRegex = new Regex(DivByZeroPattern, RegexOptions.Compiled);
         private static readonly Regex _unaryMinusRegex = new Regex(@"(?<![0-9.)])-(\d+(?:\.\d+)?)", RegexOptions.Compiled);
+        private static readonly Regex _unaryPlusRegex = new Regex(@"(?:^|(?<=\())\+", RegexOptions.Compiled);
         private readonly Queue<string?> _output = new();
-        private readonly Stack<string> _operators = new();
+        private readonly Stack<string> _operatorStack = new();
         private readonly Stack<T> _calcStack = new();
-        private readonly Dictionary<char, int> _precedence = new()
+        private static readonly Dictionary<char, (int Precedence, Func<T, T, T> Op)> _operators = new()
         {
-            { '+', 1 },                                              
-            { '-', 1 },
-            { '*', 2 },
-            { '/', 2 }
+            { '+', (1, (a, b) => a + b) },
+            { '-', (1, (a, b) => a - b) },
+            { '*', (2, (a, b) => a * b) },
+            { '/', (2, (a, b) => a / b) },
         };
 
         public IEnumerable<(string displayLine, T sum, bool isValid)> ParseRows()
@@ -43,6 +44,10 @@ namespace Calculator.Application.Core
                     {
                         T result = Calculate(postfixLine);
                         row = (raw, result, true);
+                    }
+                    catch (DivideByZeroException)
+                    {
+                        row = ($"{raw}{DivByZeroMark}", T.Zero, false);
                     }
                     catch
                     {
@@ -66,23 +71,14 @@ namespace Calculator.Application.Core
                 {
                     _calcStack.Push(number);
                 }
-                else
+                else if (_operators.TryGetValue(Convert.ToChar(token), out var op))
                 {
                     if (_calcStack.Count < 2)
                         throw new InvalidOperationException("Exception. Wrong input.");
 
                     T b = _calcStack.Pop();
                     T a = _calcStack.Pop();
-
-                    switch (token)
-                    {
-                        case "+": _calcStack.Push(a + b); break;
-                        case "-": _calcStack.Push(a - b); break;
-                        case "*": _calcStack.Push(a * b); break;
-                        case "/": 
-                            _calcStack.Push(a / b); 
-                            break;
-                    }
+                    _calcStack.Push(op.Op(a, b));
                 }
             }
 
@@ -93,40 +89,43 @@ namespace Calculator.Application.Core
         private Queue<string?> ParseLineToPostfix(string line)
         {
             _output.Clear();
-            _operators.Clear();
-            var normalized = _unaryMinusRegex.Replace(line, "(0-$1)");
+            _operatorStack.Clear();
+            var normalized = line
+                .Replace("--", "+").Replace("++", "+").Replace("+-", "-").Replace("-+", "-");
+            normalized = _unaryMinusRegex.Replace(normalized, "(0-$1)");
+            normalized = _unaryPlusRegex.Replace(normalized, "");
             var matches = _defaultRegex.Matches(normalized);
 
             foreach (Match match in matches)
             {
                 var token = match.Value;
-                
+
                 if (match.Groups["num"].Success && T.TryParse(token, CultureInfo.InvariantCulture, out T number))
                     _output.Enqueue(number.ToString());
-                
+
                 if (match.Groups["bra"].Success)
                 {
                     if (token == "(")
-                        _operators.Push(token);
+                        _operatorStack.Push(token);
                     else if (token == ")") {
-                        while (_operators.Count > 0 && _operators.Peek() != "(") _output.Enqueue(_operators.Pop());
-                        if (_operators.Count > 0) _operators.Pop();
+                        while (_operatorStack.Count > 0 && _operatorStack.Peek() != "(") _output.Enqueue(_operatorStack.Pop());
+                        if (_operatorStack.Count > 0) _operatorStack.Pop();
                     }
                 }
-                
-                if (match.Groups["op"].Success && _precedence.TryGetValue(Convert.ToChar(token), out int priority))
+
+                if (match.Groups["op"].Success && _operators.TryGetValue(Convert.ToChar(token), out var op))
                 {
-                    while (_operators.Count > 0 && 
-                           _precedence.TryGetValue(Convert.ToChar(_operators.Peek()), out int topPriority) && 
-                           topPriority >= priority) {
-                        _output.Enqueue(_operators.Pop());
+                    while (_operatorStack.Count > 0 &&
+                           _operators.TryGetValue(Convert.ToChar(_operatorStack.Peek()), out var topOp) &&
+                           topOp.Precedence >= op.Precedence) {
+                        _output.Enqueue(_operatorStack.Pop());
                     }
-                    _operators.Push(token);
+                    _operatorStack.Push(token);
                 }
             }
-            
-            while (_operators.Count > 0) _output.Enqueue(_operators.Pop());
-            
+
+            while (_operatorStack.Count > 0) _output.Enqueue(_operatorStack.Pop());
+
             return _output;
         }
     }

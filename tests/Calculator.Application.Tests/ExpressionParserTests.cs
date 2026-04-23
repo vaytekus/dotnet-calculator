@@ -13,6 +13,12 @@ public class ExpressionParserTests : IDisposable
         return new ExpressionParser<int>(_inputPath).ParseRows().ToList();
     }
 
+    private List<(string displayLine, double sum, bool isValid)> ParseDouble(params string[] lines)
+    {
+        File.WriteAllLines(_inputPath, lines);
+        return new ExpressionParser<double>(_inputPath).ParseRows().ToList();
+    }
+
     [Fact]
     public void Addition_ReturnsCorrectResult()
     {
@@ -38,11 +44,23 @@ public class ExpressionParserTests : IDisposable
         Assert.True(result[0].isValid);
     }
 
-    [Fact]
-    public void Division_ReturnsCorrectResult()
+    [Theory]
+    [InlineData("10/2", 5)]
+    [InlineData("9/3", 3)]
+    public void Division_Int_ReturnsCorrectResult(string expression, int expected)
     {
-        var result = Parse("10/2");
-        Assert.Equal(5, result[0].sum);
+        var result = Parse(expression);
+        Assert.Equal(expected, result[0].sum);
+        Assert.True(result[0].isValid);
+    }
+
+    [Theory]
+    [InlineData("4/5", 0.8)]
+    [InlineData("1/4", 0.25)]
+    public void Division_Double_ReturnsCorrectResult(string expression, double expected)
+    {
+        var result = ParseDouble(expression);
+        Assert.Equal(expected, result[0].sum);
         Assert.True(result[0].isValid);
     }
 
@@ -60,6 +78,7 @@ public class ExpressionParserTests : IDisposable
 
     [Theory]
     [InlineData("2/0")]
+    [InlineData("0/(-1+1)")]
     [InlineData("2+15/0+4*2")]
     [InlineData("(2+3)*4+(4/0)")]
     [InlineData("0/0")]
@@ -96,6 +115,7 @@ public class ExpressionParserTests : IDisposable
     [InlineData("2*-3", -6)]
     [InlineData("(-5+3)", -2)]
     [InlineData("-10+10", 0)]
+    [InlineData("--10+10", 20)]
     public void NegativeNumbers_ReturnsCorrectResult(string expression, int expected)
     {
         var result = Parse(expression);
